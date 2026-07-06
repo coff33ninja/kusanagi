@@ -1,0 +1,25 @@
+{
+  "gemini_keys": ["YOUR_GEMINI_API_KEY"],
+
+  "gemini_model": "gemini-3.1-flash-lite",
+  "live_model": "gemini-3.1-flash-live-preview",
+  "voice_model": "gemini-3.1-flash-tts-preview",
+  "temperature": 0.7,
+  "voice_name": "Aoede",
+
+  "mcp": {
+    "server_scripts": [
+      { "command": "servers/mcp-server.exe", "args": [] }
+    ]
+  },
+  "rag": {
+    "top_k": 5
+  },
+
+  "#model_reference": "Gemini models available mid-2026. See internal/config/config.go for full annotated list.",
+  "#model_text_free": "gemini-3.1-flash-lite, gemini-3-flash-preview, gemini-2.5-flash, gemini-2.5-flash-lite",
+  "#model_text_paid": "gemini-3.5-flash, gemini-3.1-pro-preview, gemini-2.5-pro",
+  "#model_live": "gemini-3.1-flash-live-preview (recommended), gemini-live-2.5-flash-native-audio",
+  "#model_tts": "gemini-3.1-flash-tts-preview (recommended), gemini-2.5-flash-preview-tts, gemini-2.5-pro-preview-tts",
+  "#voices": "Zephyr, Kore, Orus, Autonoe, Umbriel, Erinome, Laomedeia, Schedar, Achird, Sadachbia, Puck, Fenrir, Aoede, Enceladus, Algieba, Algenib, Achernar, Gacrux, Zubenelgenubi, Sadaltager, Charon, Leda, Callirrhoe, Iapetus, Despina, Rasalgethi, Alnilam, Pulcherrima, Vindemiatrix, Sulafat"
+}

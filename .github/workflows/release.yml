@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: true
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          $ver = (Get-Content VERSION -Raw).Trim()
+          $tag = "${{ github.ref_name }}" -replace '^v', ''
+          if ($ver -ne $tag) {
+            Write-Error "VERSION ($ver) does not match tag ($tag)"
+            exit 1
+          }
+          echo "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Lint
+        shell: pwsh
+        run: go vet ./...
+
+      - name: Test
+        shell: pwsh
+        run: go test ./...
+
+      - name: Build release
+        shell: pwsh
+        run: ./scripts/build.ps1 -Release
+
+      - name: Extract changelog
+        id: changelog
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.version.outputs.version }}"
+          $content = Get-Content docs/meta/CHANGELOG.md -Raw
+          $pattern = "(?ms)## \[$ver\].*?(?=\n## \[|\z)"
+          if ($content -match $pattern) {
+            $Matches[0].Trim() | Set-Content -Path changelog-release.md
+            Write-Host "Changelog extracted for v$ver"
+          } else {
+            Write-Warning "No changelog entry found for v$ver"
+            "See docs/meta/CHANGELOG.md for details." | Set-Content -Path changelog-release.md
+          }
+
+      - name: Checksum
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash -Algorithm SHA256 kusanagi.exe).Hash.ToLower()
+          Set-Content -Path "kusanagi.exe.sha256" -Value "$hash  kusanagi.exe"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ steps.version.outputs.version }}
+          body_path: changelog-release.md
+          files: |
+            kusanagi.exe
+            kusanagi.exe.sha256
+          fail_on_unmatched_files: false
+          generate_release_notes: false
