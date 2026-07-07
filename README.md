@@ -192,7 +192,7 @@ kusanagi/
 │   ├── mcp/
 │   │   └── client.go              # Raw JSON-RPC 2.0 MCP client over stdio
 │   └── audio/
-│       ├── winmm.go               # (legacy, empty stub)
+│       ├── winmm.go               # (package declaration only, zig cc CGo linkage)
 │       ├── stream.go              # malgo continuous microphone streaming
 │       └── playback.go            # malgo audio playback
 ├── docs/
@@ -217,7 +217,7 @@ kusanagi/
 
 ## Dependencies
 
-**Zero.** Go 1.26+ standard library only. Audio uses Win32 API via `golang.org/x/sys/windows` (part of the Go standard library distribution).
+**Zero.** Go 1.26+ standard library only. Audio uses `gen2brain/malgo` (miniaudio CGo bindings, statically linked via zig cc).
 
 ## Roadmap
 
@@ -238,16 +238,6 @@ Milestone | Status | Description
 **Push-to-Talk Fallback** | ❌ | Hold a hotkey (e.g. Scroll Lock) to talk instead of always-listening. Useful in noisy environments.
 **Time-Aware Personality** | ❌ | Startup probe includes current time → greeting adapts (good morning/afternoon/evening). Optional weather lookup.
 **Configurable Agent Name** | ❌ | Agent name detected from hostname or configured in config.json without editing source.
-
-## Known Issues
-
-### Microphone Capture (WinMM) — Open but No Audio Data
-On some Windows 11 systems, `waveInOpen`/`waveInStart` succeeds and the device is detected, but audio buffers are never marked `WHDR_DONE`. The polling loop sees `dwFlags = 0` indefinitely despite `waveInAddBuffer` returning success for all 4 buffers. This may be related to:
-- Windows 11 audio stack changes (WinMM deprecation)
-- Privacy/microphone permission settings blocking non-UWP apps
-- Realtek audio driver interaction with legacy WinMM API
-
-**Status**: Under investigation. The device is detected via `waveInGetDevCapsW`, `waveInOpen` succeeds, but the event callback never fires and buffers never fill. Likely a WinMM↔Windows 11 driver compatibility issue.
 
 ## Built With
 

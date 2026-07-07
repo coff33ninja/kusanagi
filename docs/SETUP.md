@@ -97,7 +97,7 @@ kusanagi/
 │   ├── mcp/
 │   │   └── client.go              # Raw JSON-RPC 2.0 MCP client over stdio
 │       └── audio/
-│       ├── winmm.go               # (legacy, empty stub)
+│       ├── winmm.go               # (package declaration only, zig cc CGo linkage)
 │       ├── stream.go              # malgo continuous microphone streaming
 │       └── playback.go            # malgo audio playback
 └── docs/
