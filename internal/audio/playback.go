@@ -4,6 +4,7 @@ package audio
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/gen2brain/malgo"
@@ -98,5 +99,6 @@ func (p *Player) Close() error {
 		p.ctx.Free()
 		p.ctx = nil
 	}
+	slog.Debug("playback: player closed")
 	return nil
 }

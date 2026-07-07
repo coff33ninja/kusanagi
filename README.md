@@ -118,6 +118,26 @@ Pre-built binaries are available on the [Releases page](https://github.com/coff3
 | `rag.top_k` | `5` | Memory results to retrieve |
 | `mcp.server_scripts` | — | MCP stdio server commands |
 
+## Logging
+
+Kusanagi writes structured JSON logs to `kusanagi.log` in the working directory (co-located with the binary). The log file is auto-created on startup with level `DEBUG` — all entries are written for downstream filtering or ingestion.
+
+Log entries include:
+- `time` — ISO 8601 timestamp
+- `level` — `DEBUG`, `INFO`, `WARN`, or `ERROR`
+- `msg` — human-readable message
+- `error` — error detail (when applicable)
+- Additional key-value pairs per entry (e.g. `tool`, `version`, `attempt`, `tool_count`)
+
+Example:
+```json
+{"time":"2026-07-07T12:34:56.789Z","level":"INFO","msg":"Kusanagi starting","version":"0.1.1"}
+{"time":"2026-07-07T12:34:57.012Z","level":"INFO","msg":"starting MCP server","cmd":"E:\\...\\mcp-server.exe"}
+{"time":"2026-07-07T12:34:58.123Z","level":"ERROR","msg":"MCP request timed out","method":"tools/list","id":1}
+```
+
+Errors that were previously silently discarded (`json.Marshal` failures, type assertion misses, `Getwd` errors, MCP non-JSON stderr lines) are now captured at `WARN`/`ERROR` level.
+
 ## Voice Controls
 
 Say any of these to exit: **shutdown**, **goodbye**, **quit**, **stop**, **exit**

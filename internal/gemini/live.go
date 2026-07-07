@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/url"
 	"sync"
 	"time"
@@ -110,11 +110,14 @@ func (lc *LiveClient) Run(ctx context.Context) error {
 		setupMap["tools"] = lc.cfg.Tools
 	}
 
-	setupJSON, _ := json.Marshal(setup)
+	setupJSON, mErr := json.Marshal(setup)
+	if mErr != nil {
+		slog.Error("live: setup marshal failed", "error", mErr)
+	}
 	if err := conn.Write(ctx, websocket.MessageText, setupJSON); err != nil {
 		return fmt.Errorf("live write setup: %w", err)
 	}
-	log.Println("Live: setup sent, waiting for setupComplete...")
+	slog.Info("live: setup sent")
 
 	audioCh, stopCapture, err := lc.audioSrc.Start(24000, 200*time.Millisecond)
 	if err != nil {
@@ -142,7 +145,7 @@ func (lc *LiveClient) Run(ctx context.Context) error {
 func (lc *LiveClient) sendAudioLoop(ctx context.Context, conn *websocket.Conn, audioCh <-chan []byte) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Live: audio loop panicked: %v", r)
+			slog.Error("live: audio loop panicked", "panic", r)
 		}
 	}()
 	var chunkCount int
@@ -165,16 +168,19 @@ func (lc *LiveClient) sendAudioLoop(ctx context.Context, conn *websocket.Conn, a
 				},
 			},
 		}
-			data, _ := json.Marshal(msg)
+			data, mErr := json.Marshal(msg)
+			if mErr != nil {
+				slog.Error("live: audio msg marshal failed", "error", mErr)
+			}
 			if err := conn.Write(ctx, websocket.MessageText, data); err != nil {
-				log.Printf("Live: audio send error (stopping): %v", err)
+				slog.Error("live: audio send error", "error", err)
 				return
 			}
 			if chunkCount == 1 {
-				log.Println("Live: first audio chunk sent — mic is streaming")
+				slog.Info("live: first audio chunk sent")
 			}
 			if time.Since(lastLog) > 5*time.Second {
-				log.Printf("Live: sent %d audio chunks so far (%d bytes each)", chunkCount, len(chunk))
+				slog.Debug("live: audio chunks progress", "count", chunkCount, "bytes_per_chunk", len(chunk))
 				lastLog = time.Now()
 			}
 		}
@@ -233,7 +239,7 @@ func (lc *LiveClient) receiveLoop(ctx context.Context, conn *websocket.Conn, can
 		}
 
 		if server.SetupComplete != nil {
-			log.Println("Live: setupComplete received")
+			slog.Info("live: setupComplete received")
 			// Send initial prompt now that the connection is confirmed ready
 			if lc.cfg.InitialPrompt != "" {
 				initMsg := map[string]any{
@@ -247,23 +253,26 @@ func (lc *LiveClient) receiveLoop(ctx context.Context, conn *websocket.Conn, can
 						"turnComplete": true,
 					},
 				}
-				initJSON, _ := json.Marshal(initMsg)
+				initJSON, mErr := json.Marshal(initMsg)
+				if mErr != nil {
+					slog.Error("live: init prompt marshal failed", "error", mErr)
+				}
 				if wErr := conn.Write(ctx, websocket.MessageText, initJSON); wErr != nil {
 					return fmt.Errorf("live write initial prompt: %w", wErr)
 				}
-				log.Println("Live: initial prompt sent")
+				slog.Info("live: initial prompt sent")
 			}
 			continue
 		}
 
 		if server.Interrupted != nil {
-			log.Println("Live: interrupted")
+			slog.Info("live: interrupted")
 			continue
 		}
 
 		if server.ToolCall != nil {
 			for _, fc := range server.ToolCall.FunctionCalls {
-				log.Printf("Live: tool call: %s", fc.Name)
+				slog.Info("live: tool call", "tool", fc.Name)
 
 				// Retry tool calls up to 3 times with exponential backoff
 				var resultStr string
@@ -278,13 +287,13 @@ func (lc *LiveClient) receiveLoop(ctx context.Context, conn *websocket.Conn, can
 					resultStr = fmt.Sprintf("error: %v", err)
 					if attempt < 2 {
 						delay := time.Duration(500*(1<<attempt)) * time.Millisecond
-						log.Printf("Live: retry %s in %v (attempt %d/3): %v", fc.Name, delay, attempt+1, err)
+						slog.Warn("live: retrying tool", "tool", fc.Name, "attempt", attempt+1, "delay", delay, "error", err)
 						time.Sleep(delay)
 					}
 				}
 
 				if !success {
-					log.Printf("Live: tool %s failed after 3 attempts", fc.Name)
+					slog.Error("live: tool failed after 3 attempts", "tool", fc.Name)
 				}
 
 				if lc.cfg.OnToolCall != nil {
@@ -313,7 +322,10 @@ func (lc *LiveClient) receiveLoop(ctx context.Context, conn *websocket.Conn, can
 						},
 					},
 				}
-				respJSON, _ := json.Marshal(toolResp)
+				respJSON, mErr := json.Marshal(toolResp)
+				if mErr != nil {
+					slog.Error("live: tool response marshal failed", "error", mErr)
+				}
 				if wErr := conn.Write(ctx, websocket.MessageText, respJSON); wErr != nil {
 					return fmt.Errorf("live write tool response: %w", wErr)
 				}
@@ -330,18 +342,18 @@ func (lc *LiveClient) receiveLoop(ctx context.Context, conn *websocket.Conn, can
 						audioRaw, err := base64.StdEncoding.DecodeString(part.InlineData.Data)
 						if err == nil && len(audioRaw) > 0 {
 							if playErr := lc.audioSink.Play(audioRaw); playErr != nil {
-								log.Printf("Live: audio play error (continuing): %v", playErr)
+								slog.Error("live: audio play error", "error", playErr)
 							}
 						}
 					}
 					if part.Text != "" {
-						log.Printf("Live: %s", part.Text)
+						slog.Debug("live: text", "text", part.Text)
 					}
 				}
 			}
 
 			if sc.TurnComplete {
-				log.Println("Live: turn complete")
+				slog.Debug("live: turn complete")
 				fmt.Print("\r  Listening... \r")
 			}
 		}

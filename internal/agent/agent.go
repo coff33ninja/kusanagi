@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -131,7 +131,7 @@ func (a *Agent) ToolCallHandler() func(name string, success bool) {
 	return func(name string, success bool) {
 		a.toolHistory.record(name)
 		if loop := a.toolHistory.detectLoop(); loop != "" {
-			log.Printf("WARNING: %s", loop)
+			slog.Warn(loop)
 		}
 	}
 }
@@ -273,7 +273,7 @@ func (a *Agent) logAudit(key, value, tags string) {
 			"tags":  tags,
 		})
 		if err != nil {
-			log.Printf("audit log failed: %v", err)
+			slog.Error("audit log failed", "error", err)
 		}
 	}()
 }
@@ -300,7 +300,7 @@ func (a *Agent) initRules() {
 			"tags":  "rule,guideline",
 		})
 		if err != nil {
-			log.Printf("rule init failed for %s: %v", r.key, err)
+			slog.Error("rule init failed", "rule_key", r.key, "error", err)
 		}
 	}
 }
@@ -333,7 +333,10 @@ func (a *Agent) runSystemProbes() (map[string]string, string) {
 			state[pr.name] = pr.data
 		}
 	}
-	stateJSON, _ := json.Marshal(state)
+	stateJSON, jErr := json.Marshal(state)
+	if jErr != nil {
+		slog.Error("state marshal failed", "error", jErr)
+	}
 	return state, string(stateJSON)
 }
 
@@ -447,7 +450,7 @@ func (a *Agent) Run() error {
 	fmt.Println("  ╚══════════════════════════════════════════════╝")
 	fmt.Println()
 
-	log.Println("Starting up...")
+	slog.Info("starting up")
 
 	// Phase 1: Validation
 	report := a.validate()
@@ -457,7 +460,7 @@ func (a *Agent) Run() error {
 	state, stateJSON := a.runSystemProbes()
 
 	greeting := a.buildGreeting(state)
-	log.Printf("Kusanagi: %s\n", greeting)
+	slog.Info("greeting", "text", greeting)
 
 	a.logAudit(fmt.Sprintf("startup_%d", time.Now().UnixNano()),
 		fmt.Sprintf("Startup state: %s", truncate(stateJSON, 1000)),
@@ -469,13 +472,13 @@ func (a *Agent) Run() error {
 	if result, err := a.mcp.CallTool("onnx_watch_start", map[string]any{
 		"interval_seconds": 5,
 	}); err != nil {
-		log.Printf("ONNX watcher start failed: %v", err)
+		slog.Error("ONNX watcher start failed", "error", err)
 	} else {
-		log.Printf("ONNX watcher started: %s", result)
+		slog.Info("ONNX watcher started", "result", result)
 	}
 
 	if a.live != nil {
-		log.Println("Entering Gemini Live mode (voice-only, no separate STT/TTS)")
+		slog.Info("entering Gemini Live mode")
 		fmt.Println("\n  Microphone active — start speaking when ready")
 
 		// Build a contextual initial prompt so Gemini speaks first
@@ -490,7 +493,7 @@ func (a *Agent) Run() error {
 		return a.live.Run(context.Background())
 	}
 
-	log.Println("No Live provider configured — nothing to do")
+	slog.Warn("no Live provider configured")
 	return nil
 }
 

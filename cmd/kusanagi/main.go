@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -46,8 +46,17 @@ func (liveAudioSource) Start(sampleRate int, chunkDuration time.Duration) (<-cha
 }
 
 func main() {
-	log.SetFlags(log.Ltime | log.Lmsgprefix)
-	log.SetPrefix("")
+	logFile, err := os.OpenFile("kusanagi.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open log file: %v\n", err)
+		os.Exit(1)
+	}
+	defer logFile.Close()
+
+	slog.SetDefault(slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})))
+	slog.Info("Kusanagi starting", "version", Version)
 
 	configPath := flag.String("config", "config.json", "path to config file")
 	showVersion := flag.Bool("version", false, "show version and exit")
@@ -59,11 +68,17 @@ func main() {
 		return
 	}
 
-	root, _ := os.Getwd()
+	root, err := os.Getwd()
+	if err != nil {
+		slog.Error("getwd failed", "error", err)
+		root = "."
+	}
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		log.Fatalf("Config: %v", err)
+		slog.Error("config load failed", "error", err)
+		fmt.Fprintf(os.Stderr, "Config error: %v\n", err)
+		os.Exit(1)
 	}
 
 	// Start MCP server
@@ -72,23 +87,24 @@ func main() {
 	for _, entry := range cfg.MCP.ServerScripts {
 		cmd := entry.ResolvedCommand(root)
 		args := entry.ResolvedArgs(root)
-		log.Printf("Starting MCP server: %s", cmd)
+		slog.Info("starting MCP server", "cmd", cmd)
 		if err := client.Start(cmd, args); err != nil {
-			log.Fatalf("MCP start: %v", err)
+			slog.Error("MCP start failed", "error", err)
+			os.Exit(1)
 		}
 	}
 
 	if err := client.Initialize(); err != nil {
-		log.Fatalf("MCP init: %v", err)
+		slog.Error("MCP init failed", "error", err)
+		os.Exit(1)
 	}
 
 	tools, err := client.ListTools()
 	if err != nil {
-		log.Fatalf("MCP list tools: %v", err)
+		slog.Error("MCP list tools failed", "error", err)
+		os.Exit(1)
 	}
-	log.Printf("MCP connected: %d tools", len(tools))
-
-	log.Println("Memory: using MCP built-in memory tools (no ChromaDB required)")
+	slog.Info("MCP connected", "tool_count", len(tools))
 
 	toolDecls := client.ToGeminiDeclarations()
 
@@ -113,7 +129,9 @@ func main() {
 	liveClient := gemini.NewLiveClient(liveCfg, client, liveAudioSource{}, &liveAudioSink{})
 	ag.SetLive(liveClient)
 
-	os.MkdirAll(filepath.Join(root, "memories"), 0755)
+	if err := os.MkdirAll(filepath.Join(root, "memories"), 0755); err != nil {
+		slog.Warn("memories dir creation failed", "error", err)
+	}
 
 	// Signal handler for graceful shutdown
 	sigCh := make(chan os.Signal, 1)
@@ -123,18 +141,19 @@ func main() {
 		<-sigCh
 		fmt.Println("\nShutting down gracefully...")
 		if err := client.Close(); err != nil {
-			log.Printf("MCP close error: %v", err)
+			slog.Error("MCP close error", "error", err)
 		}
 		os.Exit(0)
 	}()
 
-	log.Println("Kusanagi ready — voice-driven AI agent with computer-use")
+	slog.Info("Kusanagi ready")
 	if err := ag.Run(); err != nil {
-		log.Fatalf("Agent: %v", err)
+		slog.Error("agent run failed", "error", err)
+		os.Exit(1)
 	}
 
 	if err := client.Close(); err != nil {
-		log.Printf("MCP close error: %v", err)
+		slog.Error("MCP close error", "error", err)
 	}
 
 	fmt.Println("\nGoodbye.")

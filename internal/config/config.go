@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 )
@@ -132,7 +133,11 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("no mcp.server_scripts configured")
 	}
 
-	root, _ := os.Getwd()
+	root, err := os.Getwd()
+	if err != nil {
+		slog.Warn("config: getwd failed, using relative paths", "error", err)
+		root = "."
+	}
 	for i, entry := range cfg.MCP.ServerScripts {
 		cmd := entry.ResolvedCommand(root)
 		if _, err := os.Stat(cmd); os.IsNotExist(err) {

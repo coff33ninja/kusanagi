@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os/exec"
 	"sync"
 	"time"
@@ -84,6 +85,7 @@ func (c *Client) readLoop() {
 
 		var resp Response
 		if err := json.Unmarshal([]byte(line), &resp); err != nil {
+			slog.Warn("mcp: ignoring non-JSON stderr line", "line", line)
 			continue
 		}
 
@@ -132,6 +134,7 @@ func (c *Client) sendRequest(method string, params any) (Response, error) {
 	case resp := <-ch:
 		return resp, nil
 	case <-time.After(60 * time.Second):
+		slog.Error("mcp: request timed out", "method", method, "id", id)
 		return Response{}, fmt.Errorf("MCP request timed out after 60s (method: %s, id: %d)", method, id)
 	}
 }

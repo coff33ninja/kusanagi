@@ -4,6 +4,7 @@ package audio
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 
 func StartStream(sampleRate int, chunkDuration time.Duration) (<-chan []byte, func() error, error) {
 	ctx, err := malgo.InitContext(nil, malgo.ContextConfig{}, func(msg string) {
-		fmt.Printf("[audio] %s\n", msg)
+		slog.Debug("malgo: audio", "message", msg)
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("malgo InitContext: %w", err)

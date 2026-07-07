@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.1] — 2026-07-07
+
+### Added
+- Structured logging via `log/slog` with JSON output
+- Log file `kusanagi.log` (co-located with the binary, auto-created on startup)
+- Discarded error paths now logged: `json.Marshal` failures, type assertion misses, `os.Getwd` errors, MCP timeout and non-JSON stderr lines, malgo context messages
+
+### Changed
+- All `log.Print`/`log.Printf`/`log.Println` calls replaced with `slog.Info`/`slog.Warn`/`slog.Debug`/`slog.Error`
+- Log level: `DEBUG` (all entries written, filterable downstream)
+
 ## [0.1.0] — 2026-07-07
 
 ### Overview

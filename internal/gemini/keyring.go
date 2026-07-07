@@ -3,6 +3,7 @@ package gemini
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math"
 	"net/http"
 	"strconv"
@@ -160,7 +161,11 @@ func (kr *KeyRing) Stats() []KeyStats {
 
 func (kr *KeyRing) StatsJSON() string {
 	stats := kr.Stats()
-	b, _ := json.MarshalIndent(stats, "", "  ")
+	b, err := json.MarshalIndent(stats, "", "  ")
+	if err != nil {
+		slog.Error("keyring: stats marshal failed", "error", err)
+		return "{}"
+	}
 	return string(b)
 }
 
@@ -194,8 +199,9 @@ func maskKey(key string) string {
 }
 
 func extractUsage(data map[string]any) (promptTokens, outputTokens int64) {
-	usage, _ := data["usageMetadata"].(map[string]any)
-	if usage == nil {
+	usage, ok := data["usageMetadata"].(map[string]any)
+	if !ok {
+		slog.Debug("keyring: no usage metadata in response")
 		return 0, 0
 	}
 	if pt, ok := usage["promptTokenCount"].(float64); ok {
